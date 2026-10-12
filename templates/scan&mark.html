@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Biometric Recognition - {{ institution_name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f8fafc;
+            color: #1e293b;
+            min-height: 100vh;
+        }
+        .navbar {
+            background: #ffffff !important;
+            border-bottom: 1px solid #e2e8f0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+        }
+        .card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            color: #1e293b;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        }
+        #video-feed {
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+            border-radius: 12px;
+            border: 2px solid #3b82f6;
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.2);
+            background: #000;
+        }
+        .table {
+            color: #1e293b;
+        }
+        .table th {
+            background: #f1f5f9;
+            color: #475569;
+            border-color: #e2e8f0;
+        }
+        .table td {
+            border-color: #f1f5f9;
+        }
+        .status-present {
+            color: #059669;
+            font-weight: 600;
+            background: #d1fae5;
+            padding: 4px 12px;
+            border-radius: 20px;
+        }
+        .status-absent {
+            color: #dc2626;
+            font-weight: 600;
+            background: #fee2e2;
+            padding: 4px 12px;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-light sticky-top">
+    <div class="container">
+        <a class="navbar-brand fw-bold text-primary" href="/Home">🎓 {{ institution_name }}</a>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item"><a class="nav-link" href="/Home">Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link active fw-semibold" href="/scan">Live Recognition</a></li>
+                <li class="nav-item"><a class="nav-link" href="/attendance">Attendance Logs</a></li>
+            </ul>
+            <div class="d-flex align-items-center gap-3">
+                <span class="text-secondary small">Faculty: <strong class="text-dark">{{ session.user_name }}</strong></span>
+                <a href="/logout" class="btn btn-outline-danger btn-sm rounded-pill px-3">Logout</a>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<div class="container py-5">
+    <div class="row g-4">
+        <!-- Controls & Camera Feed -->
+        <div class="col-lg-7">
+            <div class="card p-4 shadow-sm h-100 text-center">
+                <h4 class="fw-bold mb-3 text-start">Live Face Recognition Session</h4>
+
+                <div class="row align-items-center mb-3 g-2 text-start">
+                    <div class="col-md-4">
+                        <label for="batchSelect" class="form-label small text-secondary">Target Course Batch</label>
+                        <select id="batchSelect" class="form-select bg-dark text-light border-secondary">
+                            {% for b in batches %}
+                            <option value="{{ b.id }}">{{ b.batch_code }} - {{ b.batch_name }} ({{ b.student_count }} students)</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="periodSelect" class="form-label small text-secondary">Session Period</label>
+                        <select id="periodSelect" class="form-select bg-dark text-light border-secondary">
+                            {% for p in session_periods %}
+                            <option value="{{ p.slot }}" {% if p.slot == current_period_slot %}selected{% endif %}>{{ p.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex gap-2 align-self-end">
+                        <button id="startBtn" class="btn btn-primary w-100">▶ Start Session</button>
+                        <button id="stopBtn" class="btn btn-danger w-100" disabled>⏹ End Session</button>
+                    </div>
+                </div>
+
+                <div class="position-relative d-inline-block my-2">
+                    <img id="video-feed" src="/video_feed" alt="Camera Stream">
+                </div>
+            </div>
+        </div>
+
+        <!-- Real-Time Attendance Log Table -->
+        <div class="col-lg-5">
+            <div class="card p-4 shadow-sm h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="fw-bold mb-0">Active Session Roster</h4>
+                    <span id="sessionBadge" class="badge bg-secondary">Inactive</span>
+                </div>
+                
+                <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Student</th>
+                                <th>Time & Period</th>
+                                <th>Status</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attendanceTableBody">
+                            <tr>
+                                <td colspan="4" class="text-center text-secondary py-4">Start session to capture live biometric recognition events.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-3">
+                    <button id="sendEmailsBtn" class="btn btn-outline-warning w-100 rounded-pill">✉ Notify Absentees via Email</button>
+                    <div id="emailStatusMsg" class="small text-center mt-2" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const batchSelect = document.getElementById('batchSelect');
+const periodSelect = document.getElementById('periodSelect');
+const conditionSelect = document.getElementById('conditionSelect');
+const videoFeed = document.getElementById('video-feed');
+const sessionBadge = document.getElementById('sessionBadge');
+const tableBody = document.getElementById('attendanceTableBody');
+
+// Check URL query parameters for batch_id
+const urlParams = new URLSearchParams(window.location.search);
+const queryBatchId = urlParams.get('batch_id');
+if (queryBatchId && batchSelect) {
+    batchSelect.value = queryBatchId;
+}
+
+// Sync UI with server-side session status on page load
+document.addEventListener('DOMContentLoaded', () => {
+    fetch('/api/session_status')
+    .then(res => res.json())
+    .then(data => {
+        if (data && data.is_running) {
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            batchSelect.disabled = true;
+            periodSelect.disabled = true;
+            if (conditionSelect) conditionSelect.disabled = true;
+            if (data.active_batch_id) {
+                batchSelect.value = data.active_batch_id;
+            }
+            sessionBadge.className = 'badge bg-success';
+            sessionBadge.textContent = `Session #${data.active_session_id || data.last_session_id} Active`;
+            videoFeed.src = '/video_feed?' + new Date().getTime();
+            refreshAttendance();
+        }
+    })
+    .catch(err => console.error("Session status check failed:", err));
+});
+
+function toggleLiveStudentStatus(studentId, currentStatus) {
+    const newStatus = currentStatus === 'Present' ? 'Absent' : 'Present';
+    fetch('/toggle_attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id: studentId, status: newStatus, period_slot: periodSelect.value })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success') {
+            refreshAttendance();
+        }
+    });
+}
+
+startBtn.addEventListener('click', () => {
+    let batchId = batchSelect ? batchSelect.value : null;
+    let periodSlot = periodSelect ? periodSelect.value : null;
+    let testCondition = conditionSelect ? conditionSelect.value : 'normal';
+
+    startBtn.disabled = true;
+    if (batchSelect) batchSelect.disabled = true;
+    if (periodSelect) periodSelect.disabled = true;
+    if (conditionSelect) conditionSelect.disabled = true;
+
+    fetch('/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batch_id: batchId, period_slot: periodSlot, test_condition: testCondition })
+    })
+    .then(res => res.json().then(data => ({ status: res.status, body: data })))
+    .then(result => {
+        if (result.status === 200 && result.body.status === 'started') {
+            videoFeed.src = '/video_feed?' + new Date().getTime();
+            stopBtn.disabled = false;
+            sessionBadge.className = 'badge bg-success';
+            sessionBadge.textContent = `Session #${result.body.session_id} (${result.body.period_slot}) Active`;
+        } else {
+            alert(result.body.error || "Failed to start recognition session.");
+            startBtn.disabled = false;
+            batchSelect.disabled = false;
+            periodSelect.disabled = false;
+        }
+    })
+    .catch(err => {
+        console.error("Start session failed:", err);
+        alert("Network or server error while starting session.");
+        startBtn.disabled = false;
+        batchSelect.disabled = false;
+        periodSelect.disabled = false;
+    });
+
+});
+
+stopBtn.addEventListener('click', () => {
+    stopBtn.disabled = true;
+
+    fetch('/stop', { method: 'POST' })
+    .then(res => res.json())
+    .then(data => {
+        resetSessionUI();
+    })
+    .catch(err => {
+        console.error("Stop session request failed:", err);
+        resetSessionUI();
+    });
+});
+
+function resetSessionUI() {
+    videoFeed.src = '/video_feed?' + new Date().getTime();
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    batchSelect.disabled = false;
+    periodSelect.disabled = false;
+    if (conditionSelect) conditionSelect.disabled = false;
+    sessionBadge.className = 'badge bg-secondary';
+    sessionBadge.textContent = 'Inactive';
+}
+
+function refreshAttendance() {
+    fetch('/attendance_data')
+    .then(res => res.json())
+    .then(data => {
+        if (!data || data.length === 0) return;
+        tableBody.innerHTML = '';
+        data.forEach(item => {
+            const row = document.createElement('tr');
+            const isPresent = item.status === 'Present';
+            const photoImg = item.photo_filename 
+                ? `<img src="/known_faces/${item.photo_filename}" class="rounded-circle me-2 border shadow-xs" style="width: 38px; height: 38px; object-fit: cover;" onerror="this.onerror=null;this.src='https://via.placeholder.com/38?text=User';">`
+                : `<div class="rounded-circle me-2 bg-secondary text-white d-inline-flex align-items-center justify-content-center fw-bold" style="width:38px;height:38px;font-size:14px;">${item.name.charAt(0)}</div>`;
+            row.innerHTML = `
+                <td>
+                    <div class="d-flex align-items-center">
+                        ${photoImg}
+                        <div>
+                            <div class="fw-bold">${item.name}</div>
+                            <div class="small text-secondary">${item.student_code}</div>
+                        </div>
+                    </div>
+                </td>
+                <td class="small">
+                    <div>${item.timestamp ? item.timestamp.split(' ')[1] : '-'}</div>
+                    <div class="badge bg-light text-dark border">${item.period_slot || periodSelect.value}</div>
+                </td>
+                <td><span class="${isPresent ? 'status-present' : 'status-absent'}">${item.status}</span></td>
+                <td class="text-end">
+                    <button class="btn ${isPresent ? 'btn-outline-danger' : 'btn-outline-success'} btn-sm rounded-pill px-2 py-0 small" onclick="toggleLiveStudentStatus(${item.student_id || item.id}, '${item.status}')">
+                        ${isPresent ? 'Absent' : 'Present'}
+                    </button>
+                </td>
+            `;
+            tableBody.appendChild(row);
+        });
+    })
+    .catch(err => console.error("Error refreshing attendance:", err));
+}
+
+setInterval(refreshAttendance, 3000);
+
+document.getElementById('sendEmailsBtn').addEventListener('click', function() {
+    const statusMsg = document.getElementById('emailStatusMsg');
+    statusMsg.style.display = 'block';
+    statusMsg.className = 'small text-center mt-2 text-info';
+    statusMsg.textContent = 'Dispatching absentee notification emails...';
+
+    fetch('/send_absentee_emails', { method: 'POST' })
+    .then(res => res.json())
+    .then(data => {
+        statusMsg.className = data.status === 'success' ? 'small text-center mt-2 text-success' : 'small text-center mt-2 text-danger';
+        statusMsg.textContent = data.message;
+    });
+});
+
+// --- Single Photo Recognition & Post-Capture Quality Analysis Logic ---
+let singleCameraStream = null;
+let currentSinglePhotoBlob = null;
+let currentSinglePhotoB64 = null;
+let lastRecognizedLogIds = [];
+
+</script>
+
+</body>
+</html>

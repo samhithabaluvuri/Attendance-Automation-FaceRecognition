@@ -1,0 +1,8 @@
+Dear NAME,
+
+This is an automated notification to inform you that you were marked ABSENT for your scheduled class session on DATE at TIME.
+
+If you believe this is an error, please contact your course instructor or department administrator.
+
+Best regards,
+Academic Attendance Management System
